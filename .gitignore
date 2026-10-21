@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.env
+.env.*
+.dev.vars*
+node_modules/
+dist/
+.next/
+.vinext/
+.wrangler/
+.sites-runtime/
+*.tsbuildinfo
+*.tar.gz
