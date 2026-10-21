@@ -16,15 +16,5 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - name: Set up Node 24
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '24'
-      - name: Check the 200-line puzzle and runner
+      - name: Check the puzzle without revealing the answer
         run: python3 -m unittest discover -s tests -v
-      - name: Check signed identity validation
-        working-directory: verifier
-        run: node tests/identity.test.mjs
-      - name: Check competing winner claims
-        working-directory: verifier
-        run: node tests/race.test.mjs

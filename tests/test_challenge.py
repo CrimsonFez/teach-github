@@ -1,43 +1,57 @@
 import contextlib
 import io
-import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import unittest
+from unittest import mock
 
 import challenge
 
 
 class ChallengeTests(unittest.TestCase):
-    def test_exactly_200_nonblank_lines(self):
-        lines = Path(challenge.__file__).read_text().splitlines()
-        self.assertEqual(len(lines), 200)
-        self.assertTrue(all(line.strip() for line in lines))
+    def test_result_is_a_deterministic_integer_in_range(self):
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            first = challenge.generate_number()
+            second = challenge.generate_number()
+        self.assertIs(type(first), int)
+        self.assertTrue(1 <= first <= 100, "The number must be between 1 and 100.")
+        self.assertTrue(first == second, "Repeated runs must produce the same number.")
+        self.assertTrue(output.getvalue() == "", "Importing and calling must be quiet.")
 
-    def test_fixed_seeds_are_deterministic_integers_in_range(self):
-        for seed in (0, 1, 0x123456789ABCDEF0, (1 << 64) - 1):
-            with self.subTest(seed=seed), contextlib.redirect_stdout(io.StringIO()) as output:
-                first = challenge.generate_number(seed)
-                self.assertIs(type(first), int)
-                self.assertTrue(1 <= first <= 100)
-                self.assertEqual(first, challenge.generate_number(seed))
-                self.assertEqual(output.getvalue(), "")
+    def test_every_room_is_visited_exactly_once(self):
+        maze = Path(challenge.__file__).resolve().parent / "maze"
+        expected = {"maze." + path.stem for path in maze.glob("room_*.py")}
+        self.assertEqual(len(expected), 200)
+        self.assertEqual(challenge.ROOM_COUNT, 200)
+        visited = []
+        real_import = challenge.import_module
 
-    def test_seed_is_required_for_direct_invocation(self):
-        environment = {key: value for key, value in os.environ.items() if key != "CHALLENGE_SEED"}
-        result = subprocess.run([sys.executable, challenge.__file__], env=environment,
-                                capture_output=True, text=True, check=False)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(result.stdout, "")
-        self.assertIn("Fork the repository", result.stderr)
+        def record_import(name):
+            visited.append(name)
+            return real_import(name)
 
-    def test_supplied_seed_prints_only_one_integer(self):
-        environment = dict(os.environ, CHALLENGE_SEED="123456789abcdef0")
-        result = subprocess.run([sys.executable, challenge.__file__], env=environment,
-                                capture_output=True, text=True, check=True)
-        self.assertEqual(result.stderr, "")
-        self.assertRegex(result.stdout, r"\A(?:[1-9][0-9]?|100)\n\Z")
+        with mock.patch.object(challenge, "import_module", side_effect=record_import):
+            state = challenge.walk()
+        self.assertIs(type(state), int)
+        self.assertTrue(0 <= state < (1 << 128), "The carried state must remain bounded.")
+        self.assertEqual(len(visited), 200)
+        self.assertEqual(set(visited), expected)
+
+    def test_cli_prints_only_one_integer(self):
+        result = subprocess.run(
+            [sys.executable, str(Path(challenge.__file__).resolve())],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertTrue(result.stderr == "", "The program must not write to stderr.")
+        self.assertTrue(
+            re.fullmatch(r"(?:[1-9][0-9]?|100)\n", result.stdout) is not None,
+            "The program must print exactly one integer from 1 to 100 and a newline.",
+        )
 
 
 if __name__ == "__main__":
