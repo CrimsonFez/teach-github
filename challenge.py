@@ -26,6 +26,7 @@ def walk():
 def generate_number():
     return 1 + walk() % 100
 
+# we do some trolling
 
 if __name__ == '__main__':
     print(generate_number())
